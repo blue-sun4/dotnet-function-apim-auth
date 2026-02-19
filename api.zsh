@@ -1,74 +1,29 @@
-#!/usr/bin/env zsh
+#!/usr/bin/env bash
 set -e
-SUFFIX="xg108"
-############################################################
-# STEP CONTROL (CLI)
-############################################################
-
-START_STEP=0
-
-usage() {
-  cat <<'EOF'
-Usage:
-  ./deploy.zsh [--from N]
-
-Options:
-  --from, -f N   Start from step N (default: 0)
-  --help, -h     Show help
-
-Examples:
-  ./deploy.zsh            # run all steps
-  ./deploy.zsh --from 6   # start at step 6 (publish function)
-  ./deploy.zsh -f 9       # start at step 9 (apply APIM policy)
-EOF
-}
-
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --from|-f)
-      shift
-      [[ -z "${1:-}" ]] && { echo "❌ Missing value for --from"; usage; exit 1; }
-      [[ "$1" =~ '^[0-9]+$' ]] || { echo "❌ --from must be an integer"; usage; exit 1; }
-      START_STEP="$1"
-      shift
-      ;;
-    --help|-h)
-      usage
-      exit 0
-      ;;
-    *)
-      echo "❌ Unknown argument: $1"
-      usage
-      exit 1
-      ;;
-  esac
-done
 
 step() {
   echo
-  echo "▶ $1"
+  echo "▶️  $1"
   echo "----------------------------------------"
 }
 
-run_step() {
-  local n="$1"
-  local title="$2"
-  shift 2
+# -----------------------------
+# Start From Step Support
+# Usage: ./deploy.sh <step_number>
+# -----------------------------
+START_STEP=${1:-1}   # default = start from step 1
+CURRENT_STEP=0
 
-  if (( n < START_STEP )); then
-    echo "⏭️  Skipping step $n (starting from $START_STEP)"
-    return 0
+run_step() {
+  CURRENT_STEP=$((CURRENT_STEP+1))
+
+  if [ "$CURRENT_STEP" -lt "$START_STEP" ]; then
+    echo "⏭️  Skipping Step $CURRENT_STEP: $1"
+    return 1
   fi
 
-  step "$n. $title"
-  "$@"
-}
-
-require_command() {
-  command -v "$1" >/dev/null || {
-    echo "❌ Missing dependency: $1"
-    exit 1
-  }
+  step "Step $CURRENT_STEP: $1"
+  return 0
 }
 
 ############################################################
@@ -76,7 +31,7 @@ require_command() {
 ############################################################
 
 LOCATION="eastus"
-
+SUFFIX="a124"
 
 RESOURCE_GROUP="rg-dotnet-apim${SUFFIX}"
 STORAGE_NAME="stor${SUFFIX}"
@@ -624,33 +579,121 @@ token_and_test_apim() {
   cat /tmp/apim-secure-response.txt
 }
 
+# Step 1
+if run_step "Creating resource group"; then
+  create_rg
+fi
 
-run_step 1  "Creating resource group" create_rg
-run_step 2  "Creating storage account" create_storage
-run_step 3  "Creating Function App" funcapp_create
-run_step 4  "Ensure worker/runtime settings" ensure_worker_runtime
-run_step 5  "Publishing Function App" publish_func
-run_step 6  "Retrieve Function App Details" get_function_details
-run_step 7  "Check Function App state" check_state
-run_step 8  "Show worker/runtime settings" show_worker_runtime
-run_step 9  "Verify Function App settings" verify_app_settings
-run_step 10 "Restart Function App" restart_funcapp
-run_step 11 "List deployed functions" list_functions
-run_step 12 "Test function with curl" test_function
+# Step 2
+if run_step "Creating storage account"; then
+  create_storage
+fi
+
+# Step 3
+if run_step "Creating Function App"; then
+  funcapp_create
+fi
+
+# Step 4
+if run_step "Ensure worker/runtime settings"; then
+  ensure_worker_runtime
+fi
+
+# Step 5
+if run_step "Publishing Function App"; then
+  publish_func
+fi
+
+# Step 6
+if run_step "Retrieve Function App Details"; then
+  get_function_details
+fi
+
+# Step 7
+if run_step "Check Function App state"; then
+  check_state
+fi
+
+# Step 8
+if run_step "Show worker/runtime settings"; then
+  show_worker_runtime
+fi
+
+# Step 9
+if run_step "Verify Function App settings"; then
+  verify_app_settings
+fi
+
+# Step 10
+if run_step "Restart Function App"; then
+  restart_funcapp
+fi
+
+# Step 11
+if run_step "List deployed functions"; then
+  list_functions
+fi
+
+# Step 12
+if run_step "Test function with curl"; then
+  test_function
+fi
 
 
-run_step 13 "Create API Management instance" create_apim
-run_step 14 "Wait for APIM provisioning" wait_for_apim
-run_step 15 "Get APIM gateway details" get_apim_details
-run_step 16 "Create API in APIM" create_apim_api
-run_step 17 "Create APIM operation + policy" create_apim_operation
+# Step 13
+if run_step "Create API Management instance"; then
+  create_apim
+fi
+
+# Step 14
+if run_step "Wait for APIM provisioning"; then
+  wait_for_apim
+fi
+
+# Step 15
+if run_step "Get APIM gateway details"; then
+  get_apim_details
+fi
+
+# Step 16
+if run_step "Create API in APIM"; then
+  create_apim_api
+fi
+
+# Step 17
+if run_step "Create APIM operation + policy"; then
+  create_apim_operation
+fi
+
 sleep 20
-run_step 18 "Test APIM endpoint with curl" test_apim
+
+# Step 18
+if run_step "Test APIM endpoint with curl"; then
+  test_apim
+fi
 
 
-#run_step 19 "Tail function logs" tail_logs
- run_step 20 "Register API App (Entra)" register_api_app
- run_step 21 "Register Client App (Entra)" register_client_app
- run_step 22 "Configure APIM JWT validation" configure_apim_jwt_validation
+## Step 19
+##if run_step "Tail function logs"; then
+##  tail_logs
+##fi
 
- run_step 23 "Get Bearer token and test secured APIM endpoint" token_and_test_apim
+# Step 20
+if run_step "Register API App (Entra)"; then
+  register_api_app
+fi
+
+# Step 21
+if run_step "Register Client App (Entra)"; then
+  register_client_app
+fi
+
+# Step 22
+if run_step "Configure APIM JWT validation"; then
+  configure_apim_jwt_validation
+fi
+
+# Step 23
+if run_step "Get Bearer token and test secured APIM endpoint"; then
+  token_and_test_apim
+fi
